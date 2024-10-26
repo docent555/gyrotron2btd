@@ -41,6 +41,6 @@ lHandleJabs.LineWidth = 1;
 axJabs.FontSize = 12;
 axJabs.XLabel.String = 'z';
 axJabs.YLabel.String = '|J|';
-lHandleJabs.XData = zf;
+lHandleJabs.XData = zp;
 grid(axJabs,'on')
 end

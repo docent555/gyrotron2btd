@@ -1,11 +1,5 @@
 function [OUTF, OUTJ, p, Eff, Omega, ConLow, jout] = gyroscr(Nz, Nzi, Nt, Ne, ZAxis, ZAxisi, TAxis, Delta, Ic, dt, dz, dzi, tol, kpar2, INTT, INTZ, OUTNz, OUTNt, InitialField) %#codegen
 
-if size(ZAxis, 2) ~= 1
-    ZAxis = ZAxis.';
-end
-if size(ZAxisi, 2) ~= 1
-    ZAxisi = ZAxisi.';
-end
 WR = complex(zeros(Nt,1));
 FNz = complex(zeros(Nt,1));
 FNzm1 = complex(zeros(Nt,1));
@@ -30,7 +24,7 @@ lfield_p = complex(zeros(Nz,1));
 B_p = complex(zeros(Nz,1));
 B = complex(zeros(Nz,1));
 p_p = complex(zeros(Nzi,Ne));
-Jref = complex(zeros(Nzi,1));
+Jr = complex(zeros(Nzi,1));
 J_p = complex(zeros(Nz,1));
 J = complex(zeros(Nz,1));
 OUTF = complex(zeros(OUTNz, OUTNt));
@@ -70,7 +64,6 @@ SQRTDT = sqrt(dt);
 SQRDZ = dz*dz;
 SQRT2M2minus2p5 = SQRT2M2 - 2.5;
 
-h = dzi;
 Nzm1 = Nz - 1;
 C0 = 1.0D0;
 CL = -1i*kpar2(1);
@@ -99,19 +92,39 @@ field(:,1) = InitialField;
 % FforP = SF(ZAxisi(1:Nzi-1));
 OUTF(:, jout) = field(IZ,1);
 th0 = 2.0D0*pi*(0:Ne-1)/Ne;
-p0 = exp(1i*th0);
-p0v = [real(p0) imag(p0)].';
+p0 = exp(1i*th0)';
+p0v = [real(p0); imag(p0)];
 reidx = 1:Ne;
 imidx = Ne+1:2*Ne;
 
+% PforF   = complex(zeros(length(ZAxis_ipart), Ne)); % то что попадает на точки
+% PforF_p = complex(zeros(length(ZAxis_ipart), Ne)); % уравнения возбуждения
+
 optsp = odeset('RelTol',1e-8,'AbsTol',1e-10);
-SF = griddedInterpolant(ZAxis, field, 'spline');
+% tmp = cell(Ne,1);
+% Sp = coder.nullcopy(tmp);
+% Sp = cell(Ne,1);
+SF = griddedInterpolant(ZAxis, field,'spline');
 p = oscill_ode(SF, Nzi, ZAxisi, Delta, p0v, reidx, imidx, optsp);
-Jref(:) = Ic * sum(p, 2)/Ne;
-SJ = griddedInterpolant(ZAxisi, Jref,'spline');
+% p = oscill_reim(field, Nzi, ZAxis, ZAxisi, Delta, p0v, reidx, imidx, opts);
+% p = oscill_cmplx(field(1:Nzi), ZAxis(1:Nzi), Delta, p0);
+% for i=1:Ne
+%     Sp{i} = griddedInterpolant(ZAxisi, p(:,i),'spline');
+%     % PforF(:,i) = Sp{i}(ZAxis_ipart);
+%     % plot(ZAxisi,abs(Sp{i}(ZAxisi)))
+%     % hold on
+% end
+% for i=1:Ne
+%     PforF(:,i) = Sp{i}(ZAxis_ipart);   
+% end
+% J(1:ZAxis_ipart_end,1) = Ic * sum(PforF, 2)/Ne;
+Jr(:) = Ic * sum(p, 2)/Ne;
+SJ = griddedInterpolant(ZAxisi, Jr,'spline');
 J(1:ZAxis_ipart_end,1) = SJ(ZAxis_ipart);
 B(:,1) = J(:) - 1i*kpar2(:).*field(:);
 OUTJ(:,jout) = J(IZ,1);
+
+% IDX = @(j) (j + 1);
 
 fmax(IDX(0)) = max(abs(field(:,1)));
 jmax(IDX(0)) = max(abs(B(:,1)));
@@ -135,7 +148,7 @@ WR(IDX(0)) =  dz * (-1i/6 * (2 * BNz(IDX(0)) + BNzm1(IDX(0))));
 
 SHOW = 1;
 if SHOW == 1
-    [lhfmax, lhfabs, lhjmax, lhjabs, hFig] = makeFig(ZAxis, ZAxis_ipart, TAxis);
+    [lhfmax, lhfabs, lhjmax, lhjabs, hFig] = makeFig(ZAxis, ZAxis_ipart , TAxis);
 end
 
 %Coefficients
@@ -178,13 +191,14 @@ for step=1:Nt-1
 
         lhjmax.YData(1:step) = Eff(1:step);
         lhjmax.XData(1:step) = TAxis(1:step);
-        lhjabs.YData = abs(J(1:ZAxis_ipart_end));
+        lhjabs.YData = abs(J);
 
         drawnow
-    end       
+    end   
 
     WL_PART = wp(-1, field(1),  field(2),    Sigma0(IDX(step-1)),  Sigma1(IDX(step-1)));
     WR_PART = wp( 1, field(Nz), field(Nzm1), SigmaNz(IDX(step-1)), SigmaNzm1(IDX(step-1)));
+
     % WL_PART = -dz * ((-coeff_1i_m_C0_m_2_d_3_d_dt) * field(1)...
     %     + (-coeff_1i_m_C0_d_3_d_dt) * field(2)...
     %     - (2.0D0 * Sigma0(IDX(step-1)) + Sigma1(IDX(step-1))));    
@@ -192,14 +206,17 @@ for step=1:Nt-1
     %     + (-coeff_1i_m_C0_d_3_d_dt) * field(Nzm1)...
     %     - (2.0D0 * SigmaNz(IDX(step-1)) + SigmaNzm1(IDX(step-1))));
 
-    % % WL(IDX(step)) = w( 1, B(1),  B(2),    B(1),  B(2),    WL_PART);    
-    % % WR(IDX(step)) = w(-1, B(Nz), B(Nzm1), B(Nz), B(Nzm1), WR_PART);
+    WL(IDX(step)) = w( 1, B(1),  B(2),    B(1),  B(2),    WL_PART);    
+    WR(IDX(step)) = w(-1, B(Nz), B(Nzm1), B(Nz), B(Nzm1), WR_PART);
+
     % WL(IDX(step)) = coeff_dz_m_coeff_1i_d_6*(4.0D0 * B(1) + 2.0D0 * B(2)) + WL_PART;
     % WR(IDX(step)) = - coeff_dz_m_coeff_1i_d_6*(4.0D0 * B(Nz) + 2.0D0 * B(Nzm1)) + WR_PART;
 
+    %     u = @(j) (WNzm1 * FNzm1(IDX(j)) + WNz * FNz(IDX(j)) + WR(IDX(j))).' .* exp(coeff_CR_m_dt * (step - j));
 
     IL = ilr(step, @ul);
     IR = ilr(step, @ur);
+
     % if step == 1
     %     IL = 0;
     % elseif step == 2
@@ -214,6 +231,7 @@ for step=1:Nt-1
     %     %     IL = IL + coeff_4_d_3_m_SQRDT * (ul(j).*((step - j - 1.0D0).^(1.5) - 2.0D0*(step - j).^(1.5) + (step - j + 1.0D0).^(1.5)));
     %     % end
     % end
+    % 
     % if step == 1
     %     IR = 0;
     % elseif step == 2
@@ -229,11 +247,15 @@ for step=1:Nt-1
     %     % end
     % end
 
+    % DD(1) = 0;
+    %         DD(1) = IN.TimeAmp * exp(1i * IN.TimeFreq * AxisTau(step));
+
  
     D_PART = dp(IL, IR, field, WL(IDX(step-1)), WR(IDX(step-1)));
-    % % D_0_PART = D_PART(1);
-    % % D_MIDDLE_PART = D_PART(2:Nzm1);
-    % % D_END_PART = D_PART(Nz);
+    % D_0_PART = D_PART(1);
+    % D_MIDDLE_PART = D_PART(2:Nzm1);
+    % D_END_PART = D_PART(Nz);
+
     % D_0_PART =   C1 * (IL + coeff_2_d_3_m_SQRDT * (W0 * field(1)...
     %     + W1 * field(2) + WL(IDX(step-1))) * coeff_exp_CL_m_dt);  
     % D_MIDDLE_PART = 2.0D0 * (1.0D0 - coeff_1i_m_C0_m_SQRDZ_d_dt) .* field(2:Nzm1)...
@@ -242,54 +264,49 @@ for step=1:Nt-1
     %     + WNz * field(Nz) + WR(IDX(step-1))) * coeff_exp_CR_m_dt);
 
     DD = d(B(2:Nzm1), B(2:Nzm1), WL(IDX(step)), WR(IDX(step)), D_PART);    
-    % % DD(1)  =   coeff_C1_m_coeff_4_d_3_m_SQRDT * WL(IDX(step)) + D_0_PART;
-    % % DD(2:Nzm1) = -coeff_1i_m_SQRDZ * (2.0D0*B(2:Nzm1)) + D_MIDDLE_PART;
-    % % DD(Nz) = - coeff_C2_m_coeff_4_d_3_m_SQRDT * WR(IDX(step)) + D_END_PART; 
 
-    % % nesamosoglasovannoe pole
-    % field_p = M \ DD;
-    % % rfield_p = rtridag(CC,AA,BB,DD);
-    % % lfield_p = ltridag(CC,AA,BB,DD);
-    % % field_p = (rfield_p + lfield_p)/2.0D0;
+    % DD(1)  =   coeff_C1_m_coeff_4_d_3_m_SQRDT * WL(IDX(step)) + D_0_PART;
+    % DD(2:Nzm1) = -coeff_1i_m_SQRDZ * (2.0D0*B(2:Nzm1)) + D_MIDDLE_PART;
+    % DD(Nz) = - coeff_C2_m_coeff_4_d_3_m_SQRDT * WR(IDX(step)) + D_END_PART; 
 
-    SF = griddedInterpolant(ZAxis, field,'spline');
-    Fref = SF(ZAxisi);    
-    RHS0 = -Fref - 1i*p.*(Delta - 1.0D0 + abs(p).^2);    
-    p_p = [p0; p(1:Nzi-1,:) + h * RHS0(1:Nzi-1,:)];
-   
-    % RHS1 = -Fref - 1i*p_p.*(Delta - 1.0D0 + abs(p_p).^2);
-    % p_p = [p0; p(1:Nzi-1,:) + h/2 * (RHS0(1:Nzi-1,:) + RHS1(2:Nzi,:))];
-    % Jref(:) = Ic * sum(p_p, 2)/Ne;
-    % SJ = griddedInterpolant(ZAxisi, Jref,'spline');
-    % J_p(1:ZAxis_ipart_end,1) = SJ(ZAxis_ipart);
-    
-    field_p = field;
+    % nesamosoglasovannoe pole
+    field_p = M \ DD;
+    % rfield_p = rtridag(CC,AA,BB,DD);
+    % lfield_p = ltridag(CC,AA,BB,DD);
+    % field_p = (rfield_p + lfield_p)/2.0D0;
+
     num_insteps = 0;
     maxfield = max(abs(field_p(:,1)));
     testfield = field_p;
     while 1
         num_insteps = num_insteps + 1;
-        
         SF = griddedInterpolant(ZAxis, field_p,'spline');
-        Fref_p = SF(ZAxisi);
-
-        RHS1 = -Fref_p - 1i*p_p.*(Delta - 1.0D0 + abs(p_p).^2);                
-        p_p = [p0; p(1:Nzi-1,:) + h/2 * (RHS0(1:Nzi-1,:) + RHS1(2:Nzi,:))];        
-        Jref(:) = Ic * sum(p_p, 2)/Ne;
-        SJ = griddedInterpolant(ZAxisi, Jref,'spline');
+        p_p = oscill_ode(SF, Nzi, ZAxisi, Delta, p0v, reidx, imidx, optsp);
+        % p = oscill_reim(field, Nzi, ZAxis, ZAxisi, Delta, p0v, reidx, imidx, opts);
+        % p = oscill_cmplx(field(1:Nzi), ZAxis(1:Nzi), Delta, p0);
+        % for i=1:Ne
+        %     Sp{i} = griddedInterpolant(ZAxisi, p_p(:,i),'spline');
+        %     PforF_p(:,i) = Sp{i}(ZAxis_ipart);
+        %     % plot(ZAxisi,abs(Sp{i}(ZAxisi)))
+        %     % hold on
+        % end
+        % J_p(1:ZAxis_ipart_end,1) = Ic * sum(PforF, 2)/Ne;
+        Jr(:) = Ic * sum(p_p, 2)/Ne;
+        SJ = griddedInterpolant(ZAxisi, Jr,'spline');
         J_p(1:ZAxis_ipart_end,1) = SJ(ZAxis_ipart);
-
         B_p(:,1) = J_p(:) - 1i*kpar2(:).*field_p(:);
 
-        WL(IDX(step)) = w( 1, B(1),  B(2),    B_p(1),  B_p(2),    WL_PART);
+        WL(IDX(step)) = w( 1, B(1),  B(2),    B_p(1),  B_p(2),    WL_PART);    
         WR(IDX(step)) = w(-1, B(Nz), B(Nzm1), B_p(Nz), B_p(Nzm1), WR_PART);
+
         % WL(IDX(step)) =  coeff_dz_m_coeff_1i_d_6 * (2.0D0 * B_p(1)  + 2.0D0 * B(1)  + B_p(2)    + B(2))    + WL_PART;
         % WR(IDX(step)) = -coeff_dz_m_coeff_1i_d_6 * (2.0D0 * B_p(Nz) + 2.0D0 * B(Nz) + B_p(Nzm1) + B(Nzm1)) + WR_PART;
 
-        DD = d(B(2:Nzm1), B_p(2:Nzm1), WL(IDX(step)), WR(IDX(step)), D_PART);
         % DD(1) =   coeff_C1_m_coeff_4_d_3_m_SQRDT * WL(IDX(step)) + D_0_PART;
         % DD(2:Nzm1) = -coeff_1i_m_SQRDZ * (B_p(2:Nzm1) + B(2:Nzm1)) + D_MIDDLE_PART;
         % DD(Nz) = -coeff_C2_m_coeff_4_d_3_m_SQRDT * WR(IDX(step)) + D_END_PART;
+
+        DD = d(B(2:Nzm1), B_p(2:Nzm1), WL(IDX(step)), WR(IDX(step)), D_PART);
 
         % samosoglasovannoe pole
         field_p(:,1) = M \ DD;
@@ -311,16 +328,20 @@ for step=1:Nt-1
 
     field(:,1) = field_p(:,1);
     SF = griddedInterpolant(ZAxis, field,'spline');
-    Fref = SF(ZAxisi);
-
-    RHS1 = -Fref - 1i*p_p.*(Delta - 1.0D0 + abs(p_p).^2);
-    p = [p0; p(1:Nzi-1,:) + h/2 * (RHS0(1:Nzi-1,:) + RHS1(2:Nzi,:))];
-
-    Jref(:) = Ic * sum(p, 2)/Ne;
-    SJ = griddedInterpolant(ZAxisi, Jref, 'spline');
+    p = oscill_ode(SF, Nzi, ZAxisi, Delta, p0v, reidx, imidx, optsp);
+    % p = oscill_reim(field, Nzi, ZAxis, ZAxisi, Delta, p0v, reidx, imidx, opts);
+    % p = oscill_cmplx(field(1:Nzi), ZAxis(1:Nzi), Delta, p0);
+    % for i=1:Ne
+    %     Sp{i} = griddedInterpolant(ZAxisi, p(:,i),'spline');
+    %     PforF(:,i) = Sp{i}(ZAxis_ipart);
+    %     % plot(ZAxisi,abs(Sp{i}(ZAxisi)))
+    %     % hold on
+    % end
+    % J(1:ZAxis_ipart_end,1) = Ic * sum(PforF, 2)/Ne;
+    Jr(:) = Ic * sum(p, 2)/Ne;
+    SJ = griddedInterpolant(ZAxisi, Jr,'spline');
     J(1:ZAxis_ipart_end,1) = SJ(ZAxis_ipart);
     B(:,1) = J(:) - 1i*kpar2(:).*field(:);
-
     fmax(IDX(step)) = max(abs(field(:,1)));
     jmax(IDX(step)) = max(abs(B(:,1)));
 
@@ -356,24 +377,24 @@ for step=1:Nt-1
         OUTJ(:, jout) = J(IZ,1);
     end
 
-    Sigma0(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(1) ...
-        + (-coeff_1i_m_C0_d_3_d_dt) * F0(IDX(step - 1)) ...
-        -coeff_1i_d_6*(B(1) + B0(IDX(step - 1))) - Sigma0(IDX(step - 1));
-    Sigma1(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(2) ...
-        + (-coeff_1i_m_C0_d_3_d_dt) * F1(IDX(step - 1)) ...
-        -coeff_1i_d_6*(B(2) + B1(IDX(step - 1))) - Sigma1(IDX(step - 1));
+    % Sigma0(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(1) ...
+    %     + (-coeff_1i_m_C0_d_3_d_dt) * F0(IDX(step - 1)) ...
+    %     -coeff_1i_d_6*(B(1) + B0(IDX(step - 1))) - Sigma0(IDX(step - 1));
+    % Sigma1(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(2) ...
+    %     + (-coeff_1i_m_C0_d_3_d_dt) * F1(IDX(step - 1)) ...
+    %     -coeff_1i_d_6*(B(2) + B1(IDX(step - 1))) - Sigma1(IDX(step - 1));
+    % 
+    % SigmaNz(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(Nz) ...
+    %     + (-coeff_1i_m_C0_d_3_d_dt) * FNz(IDX(step - 1)) ...
+    %     -coeff_1i_d_6*(B(Nz) + BNz(IDX(step - 1))) - SigmaNz(IDX(step - 1));
+    % SigmaNzm1(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(Nzm1) ...
+    %     + (-coeff_1i_m_C0_d_3_d_dt) * FNzm1(IDX(step - 1)) ...
+    %     -coeff_1i_d_6*(B(Nzm1) + BNzm1(IDX(step - 1))) - SigmaNzm1(IDX(step - 1));
 
-    SigmaNz(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(Nz) ...
-        + (-coeff_1i_m_C0_d_3_d_dt) * FNz(IDX(step - 1)) ...
-        -coeff_1i_d_6*(B(Nz) + BNz(IDX(step - 1))) - SigmaNz(IDX(step - 1));
-    SigmaNzm1(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(Nzm1) ...
-        + (-coeff_1i_m_C0_d_3_d_dt) * FNzm1(IDX(step - 1)) ...
-        -coeff_1i_d_6*(B(Nzm1) + BNzm1(IDX(step - 1))) - SigmaNzm1(IDX(step - 1));
-
-    % Sigma0(IDX(step))    = sgm(field(1),    F0(IDX(step - 1)),    B(1),     B0(IDX(step - 1)),    Sigma0(IDX(step - 1)));    
-    % Sigma1(IDX(step))    = sgm(field(2),    F1(IDX(step - 1)),    B(2),     B1(IDX(step - 1)),    Sigma1(IDX(step - 1)));    
-    % SigmaNz(IDX(step))   = sgm(field(Nz),   FNz(IDX(step - 1)),   B(Nz),    BNz(IDX(step - 1)),   SigmaNz(IDX(step - 1)));
-    % SigmaNzm1(IDX(step)) = sgm(field(Nzm1), FNzm1(IDX(step - 1)), B(Nzm1),  BNzm1(IDX(step - 1)), SigmaNzm1(IDX(step - 1)));    
+    Sigma0(IDX(step))    = sgm(field(1),    F0(IDX(step - 1)),    B(1),     B0(IDX(step - 1)),    Sigma0(IDX(step - 1)));    
+    Sigma1(IDX(step))    = sgm(field(2),    F1(IDX(step - 1)),    B(2),     B1(IDX(step - 1)),    Sigma1(IDX(step - 1)));    
+    SigmaNz(IDX(step))   = sgm(field(Nz),   FNz(IDX(step - 1)),   B(Nz),    BNz(IDX(step - 1)),   SigmaNz(IDX(step - 1)));
+    SigmaNzm1(IDX(step)) = sgm(field(Nzm1), FNzm1(IDX(step - 1)), B(Nzm1),  BNzm1(IDX(step - 1)), SigmaNzm1(IDX(step - 1)));    
 
     k = step + 1;
 
@@ -384,8 +405,8 @@ for step=1:Nt-1
         '\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b'...
         '\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b'...
         '\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b'...
-        '\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b'...
-        'Step = %8i   Time = %10.4f   Fmax = %+15.10e   Jmax = %+15.10e   W = %+15.10e   E = %+15.10e   CL = %+15.5f %%'],...
+        '\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b'...
+        'Step = %8i   Time = %10.4f   Bmax = %+15.10e   Jmax = %+15.10e   W = %+15.10e   E = %+15.10e   CL = %+10.5f %%'],...
         int64(step), TAxis(k), fmax(k), max(abs(B(:,1))), Omega(IDX(step)), Eff(IDX(step)), ConLow(IDX(step)));
 end
 

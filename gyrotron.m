@@ -35,7 +35,7 @@ end
 
 dz = Lz/(Nz - 1);
 dzi = Lzi/(Nzi - 1);
-dt = g*dzi; % следующий слой по времени больше в g раз (g*dzi - t = const - характеристика)
+dt = g^2/4*dzi; % следующий слой по времени больше в g раз (g*dzi - t = const - характеристика)
 Nt = fix(Tend/dt) + 1;
 
 kpar2 = ones(Nz,1);
@@ -74,8 +74,8 @@ else %if mode == 1
     fclose(fileID);    
 end    
 
-ZAxis = zeros(Nz, 1);
-ZAxisi = zeros(Nzi, 1);
+% ZAxis = zeros(Nz, 1);
+% ZAxisi = zeros(Nzi, 1);
 TAxis = zeros(Nt, 1);
 InitialField = zeros(Nz,1);
 
@@ -163,6 +163,8 @@ fprintf(fileID,'INTZ = %i\n', int64(INTZ));
 fprintf(fileID,'a0 = %f\n', a0);
 fclose(fileID);
 
+% [OUTF, OUTJ, p, Eff, Omega, ConLow, jout] = gyroscr_without_time_dep(Nz, Nzi, Nt, Ne, ZAxis, ZAxisi, TAxis, Delta, ...
+%     I0, dt, dz, dzi, tol, kpar2, INTT, INTZ, OUTNz, OUTNt, InitialField);
 [OUTF, OUTJ, p, Eff, Omega, ConLow, jout] = gyroscr(Nz, Nzi, Nt, Ne, ZAxis, ZAxisi, TAxis, Delta, ...
     I0, dt, dz, dzi, tol, kpar2, INTT, INTZ, OUTNz, OUTNt, InitialField);
 
