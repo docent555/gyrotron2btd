@@ -163,10 +163,10 @@ fprintf(fileID,'INTZ = %i\n', int64(INTZ));
 fprintf(fileID,'a0 = %f\n', a0);
 fclose(fileID);
 
-% [OUTF, OUTJ, p, Eff, Omega, ConLow, jout] = gyroscr_without_time_dep(Nz, Nzi, Nt, Ne, ZAxis, ZAxisi, TAxis, Delta, ...
-%     I0, dt, dz, dzi, tol, kpar2, INTT, INTZ, OUTNz, OUTNt, InitialField);
-[OUTF, OUTJ, p, Eff, Omega, ConLow, jout] = gyroscr(Nz, Nzi, Nt, Ne, ZAxis, ZAxisi, TAxis, Delta, ...
+[OUTF, OUTJ, p, Eff, Omega, ConLow, jout] = gyroscr_without_td(Nz, Nzi, Nt, Ne, ZAxis, ZAxisi, TAxis, Delta, ...
     I0, dt, dz, dzi, tol, kpar2, INTT, INTZ, OUTNz, OUTNt, InitialField);
+% [OUTF, OUTJ, p, Eff, Omega, ConLow, jout] = gyroscr(Nz, Nzi, Nt, Ne, ZAxis, ZAxisi, TAxis, Delta, ...
+%     I0, dt, dz, dzi, tol, kpar2, INTT, INTZ, OUTNz, OUTNt, InitialField);
 
 Folder = 'results/';
 
