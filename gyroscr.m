@@ -241,7 +241,7 @@ for step=1:Nt-1
     % D_END_PART = - C2 * (IR + coeff_2_d_3_m_SQRDT * (WNzm1 * field(Nzm1)...
     %     + WNz * field(Nz) + WR(IDX(step-1))) * coeff_exp_CR_m_dt);
 
-    DD = d(B(2:Nzm1), B(2:Nzm1), WL(IDX(step)), WR(IDX(step)), D_PART);    
+    % DD = d(B(2:Nzm1), B(2:Nzm1), WL(IDX(step)), WR(IDX(step)), D_PART);    
     % % DD(1)  =   coeff_C1_m_coeff_4_d_3_m_SQRDT * WL(IDX(step)) + D_0_PART;
     % % DD(2:Nzm1) = -coeff_1i_m_SQRDZ * (2.0D0*B(2:Nzm1)) + D_MIDDLE_PART;
     % % DD(Nz) = - coeff_C2_m_coeff_4_d_3_m_SQRDT * WR(IDX(step)) + D_END_PART; 
@@ -300,6 +300,9 @@ for step=1:Nt-1
         maxdiff = max(abs(testfield - field_p));
         err = maxdiff/maxfield;
         if err < tol
+            field(:,1) = field_p(:,1);
+            p(:,:) = p_p(:,:);
+            B(:,1) = B_p(:,1);
             break
         end
         testfield = field_p;
@@ -309,17 +312,17 @@ for step=1:Nt-1
         end
     end
 
-    field(:,1) = field_p(:,1);
-    SF = griddedInterpolant(ZAxis, field,'spline');
-    Fref = SF(ZAxisi);
-
-    RHS1 = -Fref - 1i*p_p.*(Delta - 1.0D0 + abs(p_p).^2);
-    p = [p0; p(1:Nzi-1,:) + h/2 * (RHS0(1:Nzi-1,:) + RHS1(2:Nzi,:))];
-
-    Jref(:) = Ic * sum(p, 2)/Ne;
-    SJ = griddedInterpolant(ZAxisi, Jref, 'spline');
-    J(1:ZAxis_ipart_end,1) = SJ(ZAxis_ipart);
-    B(:,1) = J(:) - 1i*kpar2(:).*field(:);
+    % field(:,1) = field_p(:,1);
+    % SF = griddedInterpolant(ZAxis, field, 'spline');
+    % Fref = SF(ZAxisi);
+    % 
+    % RHS1 = -Fref - 1i*p_p.*(Delta - 1.0D0 + abs(p_p).^2);
+    % p = [p0; p(1:Nzi-1,:) + h/2 * (RHS0(1:Nzi-1,:) + RHS1(2:Nzi,:))];
+    % 
+    % Jref(:) = Ic * sum(p, 2)/Ne;
+    % SJ = griddedInterpolant(ZAxisi, Jref, 'spline');
+    % J(1:ZAxis_ipart_end,1) = SJ(ZAxis_ipart);
+    % B(:,1) = J(:) - 1i*kpar2(:).*field(:);
 
     fmax(IDX(step)) = max(abs(field(:,1)));
     jmax(IDX(step)) = max(abs(B(:,1)));
@@ -356,24 +359,24 @@ for step=1:Nt-1
         OUTJ(:, jout) = J(IZ,1);
     end
 
-    Sigma0(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(1) ...
-        + (-coeff_1i_m_C0_d_3_d_dt) * F0(IDX(step - 1)) ...
-        -coeff_1i_d_6*(B(1) + B0(IDX(step - 1))) - Sigma0(IDX(step - 1));
-    Sigma1(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(2) ...
-        + (-coeff_1i_m_C0_d_3_d_dt) * F1(IDX(step - 1)) ...
-        -coeff_1i_d_6*(B(2) + B1(IDX(step - 1))) - Sigma1(IDX(step - 1));
+    % Sigma0(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(1) ...
+    %     + (-coeff_1i_m_C0_d_3_d_dt) * F0(IDX(step - 1)) ...
+    %     -coeff_1i_d_6*(B(1) + B0(IDX(step - 1))) - Sigma0(IDX(step - 1));
+    % Sigma1(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(2) ...
+    %     + (-coeff_1i_m_C0_d_3_d_dt) * F1(IDX(step - 1)) ...
+    %     -coeff_1i_d_6*(B(2) + B1(IDX(step - 1))) - Sigma1(IDX(step - 1));
+    % 
+    % SigmaNz(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(Nz) ...
+    %     + (-coeff_1i_m_C0_d_3_d_dt) * FNz(IDX(step - 1)) ...
+    %     -coeff_1i_d_6*(B(Nz) + BNz(IDX(step - 1))) - SigmaNz(IDX(step - 1));
+    % SigmaNzm1(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(Nzm1) ...
+    %     + (-coeff_1i_m_C0_d_3_d_dt) * FNzm1(IDX(step - 1)) ...
+    %     -coeff_1i_d_6*(B(Nzm1) + BNzm1(IDX(step - 1))) - SigmaNzm1(IDX(step - 1));
 
-    SigmaNz(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(Nz) ...
-        + (-coeff_1i_m_C0_d_3_d_dt) * FNz(IDX(step - 1)) ...
-        -coeff_1i_d_6*(B(Nz) + BNz(IDX(step - 1))) - SigmaNz(IDX(step - 1));
-    SigmaNzm1(IDX(step)) = -(-coeff_1i_m_C0_d_3_d_dt) * field(Nzm1) ...
-        + (-coeff_1i_m_C0_d_3_d_dt) * FNzm1(IDX(step - 1)) ...
-        -coeff_1i_d_6*(B(Nzm1) + BNzm1(IDX(step - 1))) - SigmaNzm1(IDX(step - 1));
-
-    % Sigma0(IDX(step))    = sgm(field(1),    F0(IDX(step - 1)),    B(1),     B0(IDX(step - 1)),    Sigma0(IDX(step - 1)));    
-    % Sigma1(IDX(step))    = sgm(field(2),    F1(IDX(step - 1)),    B(2),     B1(IDX(step - 1)),    Sigma1(IDX(step - 1)));    
-    % SigmaNz(IDX(step))   = sgm(field(Nz),   FNz(IDX(step - 1)),   B(Nz),    BNz(IDX(step - 1)),   SigmaNz(IDX(step - 1)));
-    % SigmaNzm1(IDX(step)) = sgm(field(Nzm1), FNzm1(IDX(step - 1)), B(Nzm1),  BNzm1(IDX(step - 1)), SigmaNzm1(IDX(step - 1)));    
+    Sigma0(IDX(step))    = sgm(field(1),    F0(IDX(step - 1)),    B(1),     B0(IDX(step - 1)),    Sigma0(IDX(step - 1)));    
+    Sigma1(IDX(step))    = sgm(field(2),    F1(IDX(step - 1)),    B(2),     B1(IDX(step - 1)),    Sigma1(IDX(step - 1)));    
+    SigmaNz(IDX(step))   = sgm(field(Nz),   FNz(IDX(step - 1)),   B(Nz),    BNz(IDX(step - 1)),   SigmaNz(IDX(step - 1)));
+    SigmaNzm1(IDX(step)) = sgm(field(Nzm1), FNzm1(IDX(step - 1)), B(Nzm1),  BNzm1(IDX(step - 1)), SigmaNzm1(IDX(step - 1)));    
 
     k = step + 1;
 
