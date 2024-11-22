@@ -255,19 +255,29 @@ for step=1:Nt-1
     SF = griddedInterpolant(ZAxis, field,'spline');
     Fref = SF(ZAxisi);    
     RHS0 = -Fref - 1i*p.*(Delta - 1.0D0 + abs(p).^2);    
-    p_p = [p0; p(1:Nzi-1,:) + h * RHS0(1:Nzi-1,:)];
-    % p_p = [p0; p(2:Nzi,:) + h * RHS0(2:Nzi,:)];
-   
-    % RHS1 = -Fref - 1i*p_p.*(Delta - 1.0D0 + abs(p_p).^2);
-    % p_p = [p0; p(1:Nzi-1,:) + h/2 * (RHS0(1:Nzi-1,:) + RHS1(2:Nzi,:))];
-    % Jref(:) = Ic * sum(p_p, 2)/Ne;
-    % SJ = griddedInterpolant(ZAxisi, Jref,'spline');
-    % J_p(1:ZAxis_ipart_end,1) = SJ(ZAxis_ipart);
+    p_p = [p0; p(1:Nzi-1,:) + h * RHS0(1:Nzi-1,:)]; % так наверное
+    % правильее (производная в начальной точке на шаг - метод Эйлера)
+    % p_p = [p0; p(2:Nzi,:) + h * RHS0(2:Nzi,:)]; % вообще не правильно
+    % (хотя считает, все равно)
+    % p_p = p; % в производная в следующей по пространству точке берется
+    % начиная с первого шага (внутри цикла)
+      
+    Jref(:) = Ic * sum(p_p, 2)/Ne;
+    SJ = griddedInterpolant(ZAxisi, Jref,'spline');
+    J_p(1:ZAxis_ipart_end,1) = SJ(ZAxis_ipart);
+
+    B_p(:,1) = J_p(:) - 1i*kpar2(:).*field_p(:);
+
+    WL(IDX(step)) = w( 1, B(1),  B(2),    B_p(1),  B_p(2),    WL_PART);
+    WR(IDX(step)) = w(-1, B(Nz), B(Nzm1), B_p(Nz), B_p(Nzm1), WR_PART);
+    DD = d(B(2:Nzm1), B_p(2:Nzm1), WL(IDX(step)), WR(IDX(step)), D_PART);    
     
-    field_p = field;
+    field_p(:,1) = M \ DD; % для 1-го приближени методом Эйлера
+        
     num_insteps = 0;
     maxfield = max(abs(field_p(:,1)));
     testfield = field_p;
+    % testfield = 100*ones(size(field_p));
     while 1
         num_insteps = num_insteps + 1;
         
